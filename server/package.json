@@ -1,0 +1,12 @@
+﻿{
+  "name": "slither-like-server",
+  "version": "1.0.0",
+  "description": "Authoritative server for Slither-like game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2"
+  }
+}

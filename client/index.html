@@ -1,0 +1,65 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Slither-like (Clean-room)</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0f14;
+    }
+    #ui {
+      position: fixed;
+      left: 12px;
+      top: 12px;
+      color: #e8eef5;
+      font-family: system-ui, Arial;
+      font-size: 14px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 10px 12px;
+      border-radius: 10px;
+      backdrop-filter: blur(6px);
+      z-index: 100;
+    }
+    input, button {
+      font-size: 14px;
+      padding: 4px 8px;
+      margin: 2px;
+    }
+    button {
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 6px;
+      opacity: 0.9;
+    }
+    #deathMsg {
+      color: #ff4444;
+      font-weight: bold;
+      margin-top: 6px;
+      display: none;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div>
+      Name:
+      <input id="name" value="Guest" maxlength="18" />
+      <button id="join">Join</button>
+      <button id="respawn">Respawn</button>
+      <button id="feed">Feed (+1)</button>
+    </div>
+    <div id="status">Connecting…</div>
+    <div id="deathMsg">You died! Click Respawn to continue.</div>
+  </div>
+  <canvas id="c"></canvas>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

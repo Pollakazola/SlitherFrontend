@@ -1,0 +1,554 @@
+ere is a solid starting point: a simple authoritative server (Node.js + WebSocket) and a browser client (Canvas). It is intentionally minimal but structured so you can extend it.
+
+1) Server (Node.js) — server.js
+// server.js
+// Minimal authoritative server for a Slither-like game.
+// Run:
+//   npm init -y
+//   npm i ws
+//   node server.js
+
+const WebSocket = require("ws");
+
+const PORT = 8080;
+const TICK_HZ = 20;
+const DT = 1 / TICK_HZ;
+
+const WORLD = {
+  w: 6000,
+  h: 6000,
+};
+
+const SNAKE = {
+  startLen: 20,
+  segSpacing: 10,
+  baseSpeed: 220, // units/sec
+  turnRate: 8.0,  // radians/sec max angular velocity control via target angle
+  radius: 16,
+  growthPerFood: 6, // segments
+};
+
+const FOOD = {
+  count: 700,
+  radius: 6,
+};
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist2 = (ax, ay, bx, by) => {
+  const dx = ax - bx, dy = ay - by;
+  return dx * dx + dy * dy;
+};
+
+function wrapPos(p) {
+  // optional: keep inside world (bounded)
+  p.x = clamp(p.x, 0, WORLD.w);
+  p.y = clamp(p.y, 0, WORLD.h);
+}
+
+function uid() {
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
+function makeFood() {
+  return {
+    id: uid(),
+    x: rand(0, WORLD.w),
+    y: rand(0, WORLD.h),
+  };
+}
+
+function makeSnake(name = "Player") {
+  const x = rand(500, WORLD.w - 500);
+  const y = rand(500, WORLD.h - 500);
+  const angle = rand(0, Math.PI * 2);
+
+  const segments = [];
+  for (let i = 0; i < SNAKE.startLen; i++) {
+    segments.push({
+      x: x - Math.cos(angle) * i * SNAKE.segSpacing,
+      y: y - Math.sin(angle) * i * SNAKE.segSpacing,
+    });
+  }
+
+  return {
+    id: uid(),
+    name,
+    hue: Math.floor(rand(0, 360)),
+    alive: true,
+    score: 0,
+    targetAngle: angle,
+    angle,
+    speed: SNAKE.baseSpeed,
+    segments, // [0] is head
+    pendingGrowth: 0,
+  };
+}
+
+const wss = new WebSocket.Server({ port: PORT });
+console.log(`Server listening on ws://localhost:${PORT}`);
+
+const state = {
+  snakes: new Map(), // socket -> snake
+  food: new Map(),   // id -> {id,x,y}
+};
+
+for (let i = 0; i < FOOD.count; i++) {
+  const f = makeFood();
+  state.food.set(f.id, f);
+}
+
+function broadcast(msgObj) {
+  const data = JSON.stringify(msgObj);
+  for (const client of wss.clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  }
+}
+
+function snapshotForClient() {
+  // Keep payload small: send head + a subset of segments
+  const snakes = [];
+  for (const [, sn] of state.snakes) {
+    if (!sn.alive) continue;
+    const step = 2; // downsample
+    const segs = [];
+    for (let i = 0; i < sn.segments.length; i += step) {
+      segs.push([sn.segments[i].x, sn.segments[i].y]);
+    }
+    snakes.push({
+      id: sn.id,
+      name: sn.name,
+      hue: sn.hue,
+      score: sn.score,
+      segs,
+    });
+  }
+
+  const food = [];
+  for (const [, f] of state.food) {
+    food.push([f.x, f.y, f.id]);
+  }
+
+  return { snakes, food, world: WORLD };
+}
+
+function killSnake(sn) {
+  sn.alive = false;
+
+  // Drop food along body
+  for (let i = 5; i < sn.segments.length; i += 3) {
+    const seg = sn.segments[i];
+    const f = { id: uid(), x: seg.x + rand(-8, 8), y: seg.y + rand(-8, 8) };
+    state.food.set(f.id, f);
+  }
+}
+
+function stepServer() {
+  // Move snakes
+  for (const [, sn] of state.snakes) {
+    if (!sn.alive) continue;
+
+    // Smooth turn toward targetAngle
+    let da = sn.targetAngle - sn.angle;
+    // Wrap angle difference to [-pi, pi]
+    da = Math.atan2(Math.sin(da), Math.cos(da));
+    const maxTurn = SNAKE.turnRate * DT;
+    sn.angle += clamp(da, -maxTurn, maxTurn);
+
+    const head = sn.segments[0];
+    const nx = head.x + Math.cos(sn.angle) * sn.speed * DT;
+    const ny = head.y + Math.sin(sn.angle) * sn.speed * DT;
+
+    // insert new head
+    sn.segments.unshift({ x: nx, y: ny });
+
+    // growth handling
+    let toRemove = 1;
+    if (sn.pendingGrowth > 0) {
+      sn.pendingGrowth -= 1;
+      toRemove = 0;
+    }
+    // maintain spacing by trimming tail
+    for (let r = 0; r < toRemove; r++) sn.segments.pop();
+
+    // enforce spacing (simple relaxation)
+    for (let i = 1; i < sn.segments.length; i++) {
+      const a = sn.segments[i - 1];
+      const b = sn.segments[i];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const target = SNAKE.segSpacing;
+      const diff = (d - target) / d;
+      b.x -= dx * diff;
+      b.y -= dy * diff;
+    }
+
+    wrapPos(sn.segments[0]);
+  }
+
+  // Collisions: food pickup
+  for (const [, sn] of state.snakes) {
+    if (!sn.alive) continue;
+    const head = sn.segments[0];
+    const eatR2 = (SNAKE.radius + FOOD.radius) ** 2;
+
+    for (const [fid, f] of state.food) {
+      if (dist2(head.x, head.y, f.x, f.y) <= eatR2) {
+        state.food.delete(fid);
+        // respawn new food elsewhere
+        const nf = makeFood();
+        state.food.set(nf.id, nf);
+
+        sn.pendingGrowth += SNAKE.growthPerFood;
+        sn.score += 1;
+        break;
+      }
+    }
+  }
+
+  // Collisions: snake head vs others' body (and self body excluding first few segments)
+  const killR2 = (SNAKE.radius * 1.05) ** 2;
+
+  const snakesArr = [...state.snakes.values()].filter(s => s.alive);
+  for (const sn of snakesArr) {
+    const head = sn.segments[0];
+
+    // Check self (skip first N segments near head)
+    for (let i = 8; i < sn.segments.length; i++) {
+      const seg = sn.segments[i];
+      if (dist2(head.x, head.y, seg.x, seg.y) <= killR2) {
+        killSnake(sn);
+        break;
+      }
+    }
+    if (!sn.alive) continue;
+
+    // Check others
+    for (const other of snakesArr) {
+      if (other === sn) continue;
+      for (let i = 0; i < other.segments.length; i++) {
+        const seg = other.segments[i];
+        if (dist2(head.x, head.y, seg.x, seg.y) <= killR2) {
+          killSnake(sn);
+          break;
+        }
+      }
+      if (!sn.alive) break;
+    }
+  }
+
+  // Broadcast snapshot
+  broadcast({ t: "state", s: snapshotForClient() });
+}
+
+wss.on("connection", (ws) => {
+  const sn = makeSnake("Guest");
+  state.snakes.set(ws, sn);
+
+  ws.send(JSON.stringify({ t: "welcome", id: sn.id, world: WORLD }));
+
+  ws.on("message", (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw.toString()); } catch { return; }
+
+    if (msg.t === "join") {
+      sn.name = String(msg.name || "Guest").slice(0, 18);
+    }
+
+    if (msg.t === "input") {
+      // input: target angle in radians
+      const a = Number(msg.a);
+      if (Number.isFinite(a)) sn.targetAngle = a;
+    }
+
+    if (msg.t === "respawn") {
+      if (!sn.alive) {
+        const fresh = makeSnake(sn.name);
+        fresh.id = sn.id; // keep id stable
+        state.snakes.set(ws, fresh);
+      }
+    }
+  });
+
+  ws.on("close", () => {
+    state.snakes.delete(ws);
+  });
+});
+
+setInterval(stepServer, 1000 / TICK_HZ);
+
+2) Client (HTML + JS) — index.html
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Slither-like (Clean-room)</title>
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#0b0f14; }
+    #ui {
+      position: fixed; left: 12px; top: 12px; color: #e8eef5;
+      font-family: system-ui, Arial; font-size: 14px;
+      background: rgba(0,0,0,0.35); padding: 10px 12px; border-radius: 10px;
+      backdrop-filter: blur(6px);
+    }
+    input, button { font-size: 14px; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div>
+      Name:
+      <input id="name" value="Guest" maxlength="18"/>
+      <button id="join">Join</button>
+      <button id="respawn">Respawn</button>
+    </div>
+    <div id="status" style="margin-top:6px; opacity:0.9;">Connecting…</div>
+  </div>
+  <canvas id="c"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+
+  function resize() {
+    canvas.width = innerWidth * devicePixelRatio;
+    canvas.height = innerHeight * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  addEventListener("resize", resize);
+  resize();
+
+  const statusEl = document.getElementById("status");
+  const nameEl = document.getElementById("name");
+  const joinBtn = document.getElementById("join");
+  const respawnBtn = document.getElementById("respawn");
+
+  const WS_URL = `ws://${location.hostname}:8080`;
+  let ws;
+
+  const state = {
+    meId: null,
+    world: { w: 6000, h: 6000 },
+    snakes: new Map(), // id -> {id,name,hue,score,segs:[[x,y],...]}
+    food: [],          // [x,y,id]
+    cam: { x: 0, y: 0, zoom: 1.0 },
+  };
+
+  function connect() {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => statusEl.textContent = `Connected to ${WS_URL}`;
+    ws.onclose = () => statusEl.textContent = "Disconnected. Refresh to retry.";
+    ws.onerror = () => statusEl.textContent = "WebSocket error.";
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.t === "welcome") {
+        state.meId = msg.id;
+        state.world = msg.world;
+      }
+      if (msg.t === "state") {
+        const s = msg.s;
+        state.world = s.world || state.world;
+
+        state.snakes.clear();
+        for (const sn of s.snakes) state.snakes.set(sn.id, sn);
+        state.food = s.food;
+      }
+    };
+  }
+
+  joinBtn.onclick = () => {
+    ws?.readyState === 1 && ws.send(JSON.stringify({ t: "join", name: nameEl.value }));
+  };
+  respawnBtn.onclick = () => {
+    ws?.readyState === 1 && ws.send(JSON.stringify({ t: "respawn" }));
+  };
+
+  // Mouse aim -> target angle
+  let mouse = { x: innerWidth/2, y: innerHeight/2 };
+  addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+  function sendInput(angle) {
+    if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "input", a: angle }));
+  }
+
+  function getMe() {
+    return state.snakes.get(state.meId);
+  }
+
+  function worldToScreen(wx, wy) {
+    const me = getMe();
+    const cx = state.cam.x;
+    const cy = state.cam.y;
+    const x = (wx - cx) * state.cam.zoom + innerWidth / 2;
+    const y = (wy - cy) * state.cam.zoom + innerHeight / 2;
+    return [x, y];
+  }
+
+  function drawGrid() {
+    const step = 200;
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.lineWidth = 1;
+
+    // determine visible bounds in world space (rough)
+    const halfW = (innerWidth/2) / state.cam.zoom;
+    const halfH = (innerHeight/2) / state.cam.zoom;
+    const minX = state.cam.x - halfW, maxX = state.cam.x + halfW;
+    const minY = state.cam.y - halfH, maxY = state.cam.y + halfH;
+
+    const gx0 = Math.floor(minX / step) * step;
+    const gy0 = Math.floor(minY / step) * step;
+
+    for (let x = gx0; x < maxX; x += step) {
+      const [sx1, sy1] = worldToScreen(x, minY);
+      const [sx2, sy2] = worldToScreen(x, maxY);
+      ctx.beginPath(); ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2); ctx.stroke();
+    }
+    for (let y = gy0; y < maxY; y += step) {
+      const [sx1, sy1] = worldToScreen(minX, y);
+      const [sx2, sy2] = worldToScreen(maxX, y);
+      ctx.beginPath(); ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawFood() {
+    ctx.save();
+    for (const [x, y] of state.food) {
+      const [sx, sy] = worldToScreen(x, y);
+      ctx.beginPath();
+      ctx.arc(sx, sy, 4 * state.cam.zoom, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(120,200,255,0.9)";
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawSnake(sn) {
+    const segs = sn.segs;
+    if (!segs?.length) return;
+
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // Body
+    ctx.beginPath();
+    for (let i = 0; i < segs.length; i++) {
+      const [x, y] = segs[i];
+      const [sx, sy] = worldToScreen(x, y);
+      if (i === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.strokeStyle = `hsl(${sn.hue}, 85%, 60%)`;
+    ctx.lineWidth = 18 * state.cam.zoom;
+    ctx.stroke();
+
+    // Head dot
+    const [hx, hy] = segs[0];
+    const [hsx, hsy] = worldToScreen(hx, hy);
+    ctx.beginPath();
+    ctx.arc(hsx, hsy, 10 * state.cam.zoom, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${sn.hue}, 95%, 65%)`;
+    ctx.fill();
+
+    // Name
+    ctx.font = `${14 * state.cam.zoom}px system-ui, Arial`;
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillText(sn.name, hsx + 14 * state.cam.zoom, hsy - 14 * state.cam.zoom);
+
+    ctx.restore();
+  }
+
+  function drawLeaderboard() {
+    const arr = [...state.snakes.values()].sort((a,b) => (b.score||0)-(a.score||0)).slice(0, 8);
+    ctx.save();
+    ctx.font = "14px system-ui, Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText("Leaderboard", innerWidth - 140, 26);
+    ctx.globalAlpha = 0.9;
+    for (let i = 0; i < arr.length; i++) {
+      const sn = arr[i];
+      ctx.fillText(`${i+1}. ${sn.name} (${sn.score||0})`, innerWidth - 180, 48 + i * 18);
+    }
+    ctx.restore();
+  }
+
+  function loop() {
+    requestAnimationFrame(loop);
+
+    // camera follows me
+    const me = getMe();
+    if (me?.segs?.length) {
+      const [hx, hy] = me.segs[0];
+      // Smooth follow
+      state.cam.x += (hx - state.cam.x) * 0.12;
+      state.cam.y += (hy - state.cam.y) * 0.12;
+    }
+
+    // aim angle
+    if (me?.segs?.length) {
+      const [hx, hy] = me.segs[0];
+      const [hsx, hsy] = worldToScreen(hx, hy);
+      const dx = mouse.x - hsx;
+      const dy = mouse.y - hsy;
+      const ang = Math.atan2(dy, dx);
+      sendInput(ang);
+    }
+
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    drawGrid();
+    drawFood();
+
+    for (const sn of state.snakes.values()) drawSnake(sn);
+    drawLeaderboard();
+  }
+
+  connect();
+  loop();
+})();
+</script>
+</body>
+</html>
+
+3) How to run locally
+
+Save server.js and index.html in a folder.
+
+In that folder:
+
+npm init -y
+
+npm i ws
+
+node server.js
+
+Serve index.html via a simple local server (important because browsers block some WS patterns from file://):
+
+python -m http.server 8000
+
+Open http://localhost:8000 and play.
+
+If you want, I can extend this codebase
+
+Common next steps that make it feel much closer to Slither:
+
+server-side spatial hashing for collision performance
+
+delta snapshots and entity culling (send only nearby objects)
+
+client interpolation (smooth movement between ticks)
+
+proper boost mechanic with mass loss
+
+minimap and skins
+
+anti-cheat basics (server-only speed, input rate limiting)
+
+Tell me which direction you want (performance, “feel,” or feature parity), and I’ll upgrade the implementation accordingly.
