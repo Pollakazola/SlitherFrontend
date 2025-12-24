@@ -60,6 +60,16 @@
   </div>
   <canvas id="c"></canvas>
 
+  <script>
+    // Configure WebSocket backend URL
+    // For Render production: Set WS_BACKEND_URL environment variable in Render dashboard
+    // Format: 'wss://your-backend-service-name.onrender.com' (use wss:// for secure WebSocket)
+    // For local development: Leave undefined to use 'ws://localhost:8080'
+    // This will be replaced by build.js during Render's build process if WS_BACKEND_URL env var is set
+    if (typeof window.WS_BACKEND_URL === 'undefined') {
+      // Keep undefined for local development (net.js will use localhost:8080)
+    }
+  </script>
   <script type="module" src="main.js"></script>
 </body>
 </html>
