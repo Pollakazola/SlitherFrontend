@@ -14,10 +14,28 @@ const state = {
   food: initFood(FOOD.count),
 };
 
+// Function to respawn all bots
+function respawnAllBots() {
+  let respawnedCount = 0;
+  for (const [key, sn] of state.snakes) {
+    if (sn.isBot === true) {
+      // Create a fresh snake with the same ID and name
+      const fresh = makeSnake(sn.name);
+      fresh.id = sn.id; // Keep id stable
+      fresh.isBot = true;
+      fresh.lastInputTime = 0;
+      state.snakes.set(key, fresh);
+      respawnedCount++;
+    }
+  }
+  console.log(`Respawned ${respawnedCount} bots`);
+  return respawnedCount;
+}
+
 function stepServer() {
   // Move all snakes
   for (const [, sn] of state.snakes) {
-    updateSnake(sn);
+    updateSnake(sn, state.food);
   }
 
   // Check food collisions
@@ -79,3 +97,9 @@ wss.on("connection", (ws) => {
 });
 
 setInterval(stepServer, 1000 / TICK_HZ);
+
+// Make respawnAllBots available globally for console access
+global.respawnAllBots = respawnAllBots;
+
+// Call respawnAllBots immediately to respawn any existing bots
+respawnAllBots();
