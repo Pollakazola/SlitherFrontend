@@ -1,0 +1,9 @@
+{
+  "name": "slither-like-client",
+  "version": "1.0.0",
+  "description": "Client for Slither-like game",
+  "scripts": {
+    "build": "node build.js"
+  }
+}
+

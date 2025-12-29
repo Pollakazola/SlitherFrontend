@@ -1,6 +1,6 @@
 ﻿// Game constants
 module.exports = {
-  PORT: 8080,
+  PORT: process.env.PORT || 8080,
   TICK_HZ: 20,
   DT: 1 / 20,
 

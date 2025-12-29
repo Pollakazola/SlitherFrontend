@@ -7,9 +7,16 @@ const indexHtmlPath = path.join(__dirname, 'index.html');
 let html = fs.readFileSync(indexHtmlPath, 'utf8');
 
 // Get WS_BACKEND_URL from environment variable (set in Render dashboard)
-const wsBackendUrl = process.env.WS_BACKEND_URL;
+let wsBackendUrl = process.env.WS_BACKEND_URL;
 
 if (wsBackendUrl) {
+  // Convert http:// or https:// to ws:// or wss:// if needed
+  if (wsBackendUrl.startsWith('http://')) {
+    wsBackendUrl = wsBackendUrl.replace('http://', 'ws://');
+  } else if (wsBackendUrl.startsWith('https://')) {
+    wsBackendUrl = wsBackendUrl.replace('https://', 'wss://');
+  }
+  
   // Replace the placeholder script with actual backend URL
   const configScript = `
   <script>
