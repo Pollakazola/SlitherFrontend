@@ -380,4 +380,8 @@ function render() {
   drawLeaderboard(interpState.snakes);
 }
 
-export { updateState, updateSnapshot, render, getMe, worldToScreen, getInterpolatedState };
+function setZoom(zoom) {
+  state.cam.zoom = zoom;
+}
+
+export { updateState, updateSnapshot, render, getMe, worldToScreen, getInterpolatedState, setZoom };

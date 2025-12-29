@@ -78,7 +78,7 @@ function updateFood(foodMap) {
         f.vx = 0;
         f.vy = 0;
         // Keep explosion flag for rendering effects, but mark as settled
-        if ((f.explosionTime || 0) > 0.5) { // After 0.5 seconds, stop explosion effect
+        if ((f.explosionTime || 0) > 1.0) { // After 1.0 seconds, stop explosion effect
           f.isExploding = false;
         }
       }

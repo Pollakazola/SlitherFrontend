@@ -63,14 +63,75 @@ function handleFeed() {
   net.send({ t: "feed" });
 }
 
+let fullscreenActive = false;
+
 function handleStartGame(name, skinId = "default") {
   // Store the name and skinId to send after connection
   pendingName = name;
   pendingSkinId = skinId;
   // Hide landing page
   ui.showLandingPage(false);
+  // Show fullscreen button
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+  if (fullscreenBtn) {
+    fullscreenBtn.classList.add('visible');
+  }
   // Connect to server
   net.connect();
+}
+
+// Fullscreen button handler
+function setupFullscreen() {
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+  if (!fullscreenBtn) return;
+  
+  fullscreenBtn.addEventListener('click', () => {
+    if (!fullscreenActive) {
+      // Enter fullscreen mode with 80% zoom
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().then(() => {
+          render.setZoom(0.8);
+          fullscreenActive = true;
+          fullscreenBtn.textContent = '⛶ Exit Fullscreen';
+        }).catch(err => {
+          console.log('Fullscreen error:', err);
+          // Still set zoom even if fullscreen fails
+          render.setZoom(0.8);
+          fullscreenActive = true;
+          fullscreenBtn.textContent = '⛶ Exit Fullscreen';
+        });
+      } else {
+        // Fallback: just set zoom if fullscreen API not available
+        render.setZoom(0.8);
+        fullscreenActive = true;
+        fullscreenBtn.textContent = '⛶ Exit Fullscreen';
+      }
+    } else {
+      // Exit fullscreen mode and reset zoom
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => {
+          render.setZoom(1.0);
+          fullscreenActive = false;
+          fullscreenBtn.textContent = '⛶ Fullscreen (80% Zoom)';
+        }).catch(err => {
+          console.log('Exit fullscreen error:', err);
+        });
+      } else {
+        render.setZoom(1.0);
+        fullscreenActive = false;
+        fullscreenBtn.textContent = '⛶ Fullscreen (80% Zoom)';
+      }
+    }
+  });
+  
+  // Listen for fullscreen changes (user pressing ESC, etc.)
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && fullscreenActive) {
+      render.setZoom(1.0);
+      fullscreenActive = false;
+      fullscreenBtn.textContent = '⛶ Fullscreen (80% Zoom)';
+    }
+  });
 }
 
 ui.setHandlers(handleJoin, handleRespawn, handleFeed, handleStartGame);
@@ -90,17 +151,16 @@ net.setMessageHandler((event) => {
 
     if (msg.t === "welcome") {
       render.updateState({ meId: msg.id, world: msg.world });
-      // Send join message with pending name and skinId if we have them
+      // Send join message with pending name and skinId
+      // Always send join message, even if no pending name (use "Guest" as fallback)
       // Add a small delay to ensure connection is fully established
-      if (pendingName) {
-        setTimeout(() => {
-          const nameToSend = pendingName.trim() || "Guest";
-          const skinIdToSend = pendingSkinId || "default";
-          handleJoin(nameToSend, skinIdToSend);
-          pendingName = null;
-          pendingSkinId = null;
-        }, 50);
-      }
+      setTimeout(() => {
+        const nameToSend = (pendingName && pendingName.trim()) || "Guest";
+        const skinIdToSend = pendingSkinId || "default";
+        handleJoin(nameToSend, skinIdToSend);
+        pendingName = null;
+        pendingSkinId = null;
+      }, 50);
     }
 
     if (msg.t === "state") {
@@ -158,6 +218,9 @@ function gameLoop() {
 
   render.render();
 }
+
+// Setup fullscreen functionality
+setupFullscreen();
 
 // Don't auto-connect - wait for user to start game
 // net.connect();

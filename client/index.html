@@ -121,6 +121,30 @@
     canvas {
       display: block;
     }
+    #fullscreenBtn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1001;
+      padding: 12px 24px;
+      background: rgba(74, 158, 255, 0.8);
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+      display: none;
+    }
+    #fullscreenBtn:hover {
+      background: rgba(74, 158, 255, 1);
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+    #fullscreenBtn.visible {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -147,6 +171,9 @@
       <button id="startGame">Start Game</button>
     </div>
   </div>
+
+  <!-- Fullscreen Button -->
+  <button id="fullscreenBtn">⛶ Fullscreen (80% Zoom)</button>
 
   <canvas id="c"></canvas>
 
