@@ -1,19 +1,5 @@
 ﻿// Network communication
-// Configuration: Set window.WS_BACKEND_URL in index.html or it defaults to localhost
-// For production on Render: Set WS_BACKEND_URL to your backend service URL (e.g., 'wss://your-backend.onrender.com')
-// For local development: Leave undefined to use 'ws://localhost:8080'
-const getWS_URL = () => {
-  // Check if backend URL is explicitly configured
-  if (window.WS_BACKEND_URL) {
-    return window.WS_BACKEND_URL;
-  }
-  
-  // Default to localhost for development
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${location.hostname}:8080`;
-};
-
-const WS_URL = getWS_URL();
+const WS_URL = `ws://${location.hostname}:8080`;
 
 let ws = null;
 let onMessageCallback = null;
@@ -43,13 +29,6 @@ function connect() {
   };
 }
 
-function disconnect() {
-  if (ws) {
-    ws.close();
-    ws = null;
-  }
-}
-
 function send(msg) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(msg));
@@ -60,4 +39,4 @@ function setMessageHandler(callback) {
   onMessageCallback = callback;
 }
 
-export { connect, disconnect, send, setMessageHandler, WS_URL };
+export { connect, send, setMessageHandler, WS_URL };

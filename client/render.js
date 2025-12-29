@@ -52,7 +52,7 @@ function getInterpolatedState() {
   if (!prevSnapshot || alpha >= 1) {
     const snakes = new Map();
     for (const [id, sn] of (currentSnapshot.snakes || [])) {
-      snakes.set(id, { ...sn, width: sn.width || 18, sprinting: sn.sprinting || false });
+      snakes.set(id, { ...sn, width: sn.width || 18 });
     }
     return {
       ...state,
@@ -99,7 +99,6 @@ function getInterpolatedState() {
       ...currSn,
       segs: interpSegs,
       width: interpWidth,
-      sprinting: currSn.sprinting || false, // Preserve sprinting state
     });
   }
 
@@ -193,20 +192,12 @@ function drawGrid(cam) {
 
 function drawFood(food, cam) {
   ctx.save();
+  ctx.fillStyle = "rgba(120, 200, 255, 0.9)";
   for (const foodItem of food) {
-    // Food format: [x, y, id, size, hue] or [x, y, id, size] (legacy)
+    // Food format: [x, y, id, size] or [x, y, id] (legacy)
     const x = foodItem[0];
     const y = foodItem[1];
     const size = foodItem[3] || 4; // Default to 4 if size not provided (legacy support)
-    const hue = foodItem[4]; // Hue if available (for sprint-dropped food)
-    
-    // Use snake's hue if available, otherwise use default blue color
-    if (hue !== null && hue !== undefined) {
-      ctx.fillStyle = `hsla(${hue}, 85%, 60%, 0.9)`;
-    } else {
-      ctx.fillStyle = "rgba(120, 200, 255, 0.9)";
-    }
-    
     const [sx, sy] = worldToScreen(x, y, cam);
     ctx.beginPath();
     ctx.arc(sx, sy, size * cam.zoom, 0, Math.PI * 2);
@@ -226,11 +217,6 @@ function drawSnake(sn, cam) {
   // Use dynamic width based on score/food consumption
   const snakeWidth = (sn.width || 18) * cam.zoom;
 
-  // Brighten color by 50% when sprinting (increase lightness by 50 percentage points)
-  const isSprinting = sn.sprinting || false;
-  const bodyLightness = isSprinting ? Math.min(100, 60 + 50) : 60; // 60% -> 100% when sprinting
-  const headLightness = isSprinting ? Math.min(100, 65 + 50) : 65; // 65% -> 100% when sprinting
-
   // Body
   ctx.beginPath();
   for (let i = 0; i < segs.length; i++) {
@@ -239,7 +225,7 @@ function drawSnake(sn, cam) {
     if (i === 0) ctx.moveTo(sx, sy);
     else ctx.lineTo(sx, sy);
   }
-  ctx.strokeStyle = `hsl(${sn.hue}, 85%, ${bodyLightness}%)`;
+  ctx.strokeStyle = `hsl(${sn.hue}, 85%, 60%)`;
   ctx.lineWidth = snakeWidth;
   ctx.stroke();
 
@@ -249,7 +235,7 @@ function drawSnake(sn, cam) {
   const headRadius = (snakeWidth / 2) * 0.55; // Head slightly smaller than body width
   ctx.beginPath();
   ctx.arc(hsx, hsy, headRadius, 0, Math.PI * 2);
-  ctx.fillStyle = `hsl(${sn.hue}, 95%, ${headLightness}%)`;
+  ctx.fillStyle = `hsl(${sn.hue}, 95%, 65%)`;
   ctx.fill();
 
   // Name
@@ -266,16 +252,28 @@ function drawLeaderboard(snakes) {
     .slice(0, 8);
 
   ctx.save();
-  ctx.font = "14px system-ui, Arial";
+  ctx.font = "28px system-ui, Arial";
   ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-  ctx.fillText("Leaderboard", innerWidth - 140, 26);
+  ctx.fillText("Leaderboard", innerWidth - 280, 52);
   ctx.globalAlpha = 0.9;
   for (let i = 0; i < arr.length; i++) {
     const sn = arr[i];
+    const y = 96 + i * 36;
+    const x = innerWidth - 360;
+    
+    // Draw head sprite (small circle with snake's color)
+    const headRadius = 10; // Fixed size for leaderboard
+    const headX = x - 20; // Position before the text
+    ctx.beginPath();
+    ctx.arc(headX, y - 4, headRadius, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${sn.hue || 200}, 95%, 65%)`;
+    ctx.fill();
+    
+    // Draw text with head sprite offset
     ctx.fillText(
-      `${i + 1}. ${sn.name} (${sn.score || 0})`,
-      innerWidth - 180,
-      48 + i * 18
+      `${i + 1}. ${sn.name} (${Math.floor(sn.score || 0)})`,
+      x,
+      y
     );
   }
   ctx.restore();

@@ -14,7 +14,7 @@ module.exports = {
 
   SNAKE: {
     startLen: 20,
-    segSpacing: 10, baseSpeed: 220, // units/sec
+    segSpacing: 0.1, baseSpeed: 220, // units/sec (minimal spacing for 70% overlap)
     turnRate: 8.0,  // radians/sec
     radius: 16,
     baseWidth: 18, // base width for rendering (lineWidth)

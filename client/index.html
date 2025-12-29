@@ -81,36 +81,42 @@
     .landingContent button:active {
       background: #3a8eef;
     }
-    #ui {
-      position: fixed;
-      left: 12px;
-      top: 12px;
-      color: #e8eef5;
-      font-family: system-ui, Arial;
-      font-size: 14px;
-      background: rgba(0, 0, 0, 0.35);
-      padding: 10px 12px;
-      border-radius: 10px;
-      backdrop-filter: blur(6px);
-      z-index: 100;
+    .spriteSelection {
+      margin: 20px 0;
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
     }
-    input, button {
-      font-size: 14px;
-      padding: 4px 8px;
-      margin: 2px;
+    .spriteOption {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      padding: 10px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      transition: all 0.2s;
+      min-width: 100px;
     }
-    button {
+    .spriteOption:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      background: rgba(0, 0, 0, 0.3);
+    }
+    .spriteOption.selected {
+      border-color: #4a9eff;
+      background: rgba(74, 158, 255, 0.2);
+    }
+    .spriteOption input[type="radio"] {
+      margin: 0 0 8px 0;
       cursor: pointer;
     }
-    #status {
-      margin-top: 6px;
-      opacity: 0.9;
-    }
-    #deathMsg {
-      color: #ff4444;
-      font-weight: bold;
-      margin-top: 6px;
-      display: none;
+    .spriteOption label {
+      cursor: pointer;
+      font-size: 14px;
+      color: #e8eef5;
+      user-select: none;
     }
     canvas {
       display: block;
@@ -124,36 +130,26 @@
       <h1>🐍 Slither Game</h1>
       <p>Enter your name to start playing</p>
       <input id="landingName" type="text" placeholder="Enter your name" maxlength="18" value="Guest" />
-      <br>
+      <div class="spriteSelection">
+        <div class="spriteOption">
+          <input type="radio" id="skinDefault" name="spriteType" value="default" checked />
+          <label for="skinDefault">Default</label>
+        </div>
+        <div class="spriteOption">
+          <input type="radio" id="skinSnake1" name="spriteType" value="snake1" />
+          <label for="skinSnake1">Snake 1</label>
+        </div>
+        <div class="spriteOption">
+          <input type="radio" id="skinSnake2" name="spriteType" value="snake2" />
+          <label for="skinSnake2">Snake 2</label>
+        </div>
+      </div>
       <button id="startGame">Start Game</button>
     </div>
   </div>
 
-  <!-- Game UI -->
-  <div id="ui">
-    <div>
-      Name:
-      <input id="name" value="Guest" maxlength="18" />
-      <button id="join">Join</button>
-      <button id="respawn">Respawn</button>
-      <button id="feed">Feed (+1)</button>
-    </div>
-    <div id="status">Not connected</div>
-    <div id="deathMsg">You died! Click Respawn to continue.</div>
-  </div>
   <canvas id="c"></canvas>
 
-  
-  <script>
-    // Configure WebSocket backend URL
-    // For Render production: Set WS_BACKEND_URL environment variable in Render dashboard
-    // Format: 'wss://your-backend-service-name.onrender.com' (use wss:// for secure WebSocket)
-    // For local development: Leave undefined to use 'ws://localhost:8080'
-    // This will be replaced by build.js during Render's build process if WS_BACKEND_URL env var is set
-    if (typeof window.WS_BACKEND_URL === 'undefined') {
-      // Keep undefined for local development (net.js will use localhost:8080)
-    }
-  </script>
   <script type="module" src="main.js"></script>
 </body>
 </html>

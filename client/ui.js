@@ -1,10 +1,4 @@
 ﻿// UI management
-const statusEl = document.getElementById("status");
-const nameEl = document.getElementById("name");
-const joinBtn = document.getElementById("join");
-const respawnBtn = document.getElementById("respawn");
-const feedBtn = document.getElementById("feed");
-const deathMsgEl = document.getElementById("deathMsg");
 const landingPageEl = document.getElementById("landingPage");
 const landingNameEl = document.getElementById("landingName");
 const startGameBtn = document.getElementById("startGame");
@@ -14,22 +8,12 @@ let onRespawn = null;
 let onFeed = null;
 let onStartGame = null;
 
-joinBtn.onclick = () => {
-  if (onJoin) onJoin(nameEl.value);
-};
-
-respawnBtn.onclick = () => {
-  if (onRespawn) onRespawn();
-};
-
-feedBtn.onclick = () => {
-  if (onFeed) onFeed();
-};
-
 startGameBtn.onclick = () => {
   if (onStartGame) {
     const name = landingNameEl.value.trim() || "Guest";
-    onStartGame(name);
+    const selectedSprite = document.querySelector('input[name="spriteType"]:checked');
+    const skinId = selectedSprite ? selectedSprite.value : "default";
+    onStartGame(name, skinId);
   }
 };
 
@@ -40,12 +24,34 @@ landingNameEl.addEventListener("keypress", (e) => {
   }
 });
 
+// Add visual feedback for sprite selection
+function updateSpriteSelection() {
+  const spriteOptions = document.querySelectorAll('input[name="spriteType"]');
+  spriteOptions.forEach(option => {
+    const optionDiv = option.closest('.spriteOption');
+    if (option.checked) {
+      optionDiv.classList.add('selected');
+    } else {
+      optionDiv.classList.remove('selected');
+    }
+  });
+}
+
+// Initialize selection on page load
+document.addEventListener("DOMContentLoaded", () => {
+  updateSpriteSelection();
+  const spriteOptions = document.querySelectorAll('input[name="spriteType"]');
+  spriteOptions.forEach(option => {
+    option.addEventListener("change", updateSpriteSelection);
+  });
+});
+
 function setStatus(text) {
-  statusEl.textContent = text;
+  // Status display removed - no longer needed
 }
 
 function showDeathMessage(show) {
-  deathMsgEl.style.display = show ? 'block' : 'none';
+  // Death message removed - no longer needed
 }
 
 function showLandingPage(show) {

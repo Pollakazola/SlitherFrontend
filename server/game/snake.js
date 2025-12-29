@@ -6,7 +6,7 @@ function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
 }
 
-function makeSnake(name = "Player") {
+function makeSnake(name = "Player", skinId = "default") {
   // Spawn within circular barrier
   const { isInsideBarrier } = require('./world');
   let x, y;
@@ -39,6 +39,7 @@ function makeSnake(name = "Player") {
     id: uid(),
     name,
     hue: Math.floor(rand(0, 360)),
+    skinId: skinId, // Add skinId property
     alive: true,
     score: SNAKE.startLen, // Score equals segment count
     targetAngle: angle,
@@ -67,7 +68,9 @@ function updateSnake(sn, foodMap) {
   let da = sn.targetAngle - sn.angle;
   // Wrap angle difference to [-pi, pi]
   da = Math.atan2(Math.sin(da), Math.cos(da));
-  const maxTurn = SNAKE.turnRate * DT;
+  // Bots turn 30% slower (70% of normal turn rate)
+  const effectiveTurnRate = sn.isBot ? SNAKE.turnRate * 0.7 : SNAKE.turnRate;
+  const maxTurn = effectiveTurnRate * DT;
   sn.angle += clamp(da, -maxTurn, maxTurn);
 
   const head = sn.segments[0];
@@ -190,17 +193,23 @@ function updateSnake(sn, foodMap) {
     sn.segments.pop(); // Remove excess segments to match score
   }
 
-  // Enforce spacing (simple relaxation)
+  // Enforce spacing (simple relaxation) - completely disabled to allow overlap
+  // Segments will naturally overlap based on movement speed and minimal spacing
+  // Only prevent segments from getting extremely far apart (more than 10x spacing)
   for (let i = 1; i < sn.segments.length; i++) {
     const a = sn.segments[i - 1];
     const b = sn.segments[i];
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const d = Math.hypot(dx, dy) || 1;
-    const target = SNAKE.segSpacing;
-    const diff = (d - target) / d;
-    b.x -= dx * diff;
-    b.y -= dy * diff;
+    const maxSpacing = SNAKE.segSpacing * 10; // Only prevent extreme separation
+    // Only pull segments together if they're extremely far apart
+    if (d > maxSpacing) {
+      const diff = (d - maxSpacing) / d;
+      b.x -= dx * diff;
+      b.y -= dy * diff;
+    }
+    // Completely allow overlap - no minimum spacing enforcement
   }
 
   wrapPos(sn.segments[0]);

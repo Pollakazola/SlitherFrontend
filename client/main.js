@@ -6,7 +6,6 @@ import * as render from './render.js';
 let mouse = { x: innerWidth / 2, y: innerHeight / 2 };
 let lastInputTime = 0;
 let sprinting = false;
-let deathTimeout = null;
 const INPUT_RATE_LIMIT = 50; // 20 Hz = 50ms
 
 addEventListener("mousemove", (e) => {
@@ -47,8 +46,13 @@ function sendInput(angle) {
   net.send({ t: "input", a: angle, sprint: sprinting });
 }
 
-function handleJoin(name) {
-  net.send({ t: "join", name });
+let pendingName = null;
+let pendingSkinId = null;
+let deathTimeout = null;
+
+function handleJoin(name, skinId = "default") {
+  const nameToSend = String(name || "Guest").trim();
+  net.send({ t: "join", name: nameToSend, skinId: skinId });
 }
 
 function handleRespawn() {
@@ -59,17 +63,14 @@ function handleFeed() {
   net.send({ t: "feed" });
 }
 
-function handleStartGame(name) {
-  // Update the name input in the game UI
-  document.getElementById("name").value = name;
+function handleStartGame(name, skinId = "default") {
+  // Store the name and skinId to send after connection
+  pendingName = name;
+  pendingSkinId = skinId;
   // Hide landing page
   ui.showLandingPage(false);
   // Connect to server
   net.connect();
-  // Join with the name
-  setTimeout(() => {
-    handleJoin(name);
-  }, 100); // Small delay to ensure connection is established
 }
 
 ui.setHandlers(handleJoin, handleRespawn, handleFeed, handleStartGame);
@@ -79,16 +80,27 @@ ui.showLandingPage(true);
 
 net.setMessageHandler((event) => {
   if (event.type === 'connected') {
-    ui.setStatus(`Connected to ${net.WS_URL}`);
+    // Connection established
   } else if (event.type === 'disconnected') {
-    ui.setStatus("Disconnected. Refresh to retry.");
+    // Disconnected
   } else if (event.type === 'error') {
-    ui.setStatus("WebSocket error.");
+    // WebSocket error
   } else if (event.type === 'message') {
     const msg = event.data;
 
     if (msg.t === "welcome") {
       render.updateState({ meId: msg.id, world: msg.world });
+      // Send join message with pending name and skinId if we have them
+      // Add a small delay to ensure connection is fully established
+      if (pendingName) {
+        setTimeout(() => {
+          const nameToSend = pendingName.trim() || "Guest";
+          const skinIdToSend = pendingSkinId || "default";
+          handleJoin(nameToSend, skinIdToSend);
+          pendingName = null;
+          pendingSkinId = null;
+        }, 50);
+      }
     }
 
     if (msg.t === "state") {
@@ -110,18 +122,15 @@ net.setMessageHandler((event) => {
       const interpState = render.getInterpolatedState();
       const me = render.getMe(interpState);
       if (me === undefined) {
-        ui.showDeathMessage(true);
         // Redirect to landing page after a short delay (only if not already set)
         if (!deathTimeout) {
           deathTimeout = setTimeout(() => {
             ui.showLandingPage(true);
-            ui.showDeathMessage(false);
             net.disconnect();
             deathTimeout = null;
-          }, 2000); // Show death message for 2 seconds before redirecting
+          }, 2000); // Wait 2 seconds before redirecting
         }
       } else {
-        ui.showDeathMessage(false);
         // Clear death timeout if player respawned
         if (deathTimeout) {
           clearTimeout(deathTimeout);

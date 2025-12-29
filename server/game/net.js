@@ -17,15 +17,14 @@ function snapshotForClient(snakes, food) {
       hue: sn.hue,
       score: sn.score,
       width: sn.width, // include width for rendering
-      sprinting: sn.sprinting, // include sprinting state for color brightening
       segs,
     });
   }
 
   const foodList = [];
   for (const f of food.values()) {
-    // Include food size and hue in snapshot: [x, y, id, size, hue] (hue optional)
-    foodList.push([f.x, f.y, f.id, f.size || FOOD.radius, f.hue || null]);
+    // Include food size in snapshot: [x, y, id, size]
+    foodList.push([f.x, f.y, f.id, f.size || FOOD.radius]);
   }
 
   return {
@@ -51,12 +50,10 @@ function validateInput(msg, snake, now) {
     return false;
   }
 
-  // Validate angle and sprint
+  // Validate angle
   if (msg.t === "input") {
     const a = Number(msg.a);
     if (!Number.isFinite(a)) return false;
-    // sprint is optional boolean
-    if (msg.sprint !== undefined && typeof msg.sprint !== 'boolean') return false;
     snake.lastInputTime = now;
     return true;
   }
