@@ -1,5 +1,6 @@
 ﻿// Network communication
-const WS_URL = `ws://${location.hostname}:8080`;
+// Use WS_BACKEND_URL from build-time environment variable if available, otherwise use localhost
+const WS_URL = window.WS_BACKEND_URL || `ws://${location.hostname}:8080`;
 
 let ws = null;
 let onMessageCallback = null;
