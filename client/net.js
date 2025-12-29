@@ -43,6 +43,13 @@ function connect() {
   };
 }
 
+function disconnect() {
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+}
+
 function send(msg) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(msg));
@@ -53,4 +60,4 @@ function setMessageHandler(callback) {
   onMessageCallback = callback;
 }
 
-export { connect, send, setMessageHandler, WS_URL };
+export { connect, disconnect, send, setMessageHandler, WS_URL };

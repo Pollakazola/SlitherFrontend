@@ -6,6 +6,7 @@ import * as render from './render.js';
 let mouse = { x: innerWidth / 2, y: innerHeight / 2 };
 let lastInputTime = 0;
 let sprinting = false;
+let deathTimeout = null;
 const INPUT_RATE_LIMIT = 50; // 20 Hz = 50ms
 
 addEventListener("mousemove", (e) => {
@@ -58,7 +59,23 @@ function handleFeed() {
   net.send({ t: "feed" });
 }
 
-ui.setHandlers(handleJoin, handleRespawn, handleFeed);
+function handleStartGame(name) {
+  // Update the name input in the game UI
+  document.getElementById("name").value = name;
+  // Hide landing page
+  ui.showLandingPage(false);
+  // Connect to server
+  net.connect();
+  // Join with the name
+  setTimeout(() => {
+    handleJoin(name);
+  }, 100); // Small delay to ensure connection is established
+}
+
+ui.setHandlers(handleJoin, handleRespawn, handleFeed, handleStartGame);
+
+// Show landing page initially
+ui.showLandingPage(true);
 
 net.setMessageHandler((event) => {
   if (event.type === 'connected') {
@@ -94,8 +111,22 @@ net.setMessageHandler((event) => {
       const me = render.getMe(interpState);
       if (me === undefined) {
         ui.showDeathMessage(true);
+        // Redirect to landing page after a short delay (only if not already set)
+        if (!deathTimeout) {
+          deathTimeout = setTimeout(() => {
+            ui.showLandingPage(true);
+            ui.showDeathMessage(false);
+            net.disconnect();
+            deathTimeout = null;
+          }, 2000); // Show death message for 2 seconds before redirecting
+        }
       } else {
         ui.showDeathMessage(false);
+        // Clear death timeout if player respawned
+        if (deathTimeout) {
+          clearTimeout(deathTimeout);
+          deathTimeout = null;
+        }
       }
     }
   }
@@ -119,5 +150,6 @@ function gameLoop() {
   render.render();
 }
 
-net.connect();
+// Don't auto-connect - wait for user to start game
+// net.connect();
 gameLoop();
