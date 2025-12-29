@@ -2,7 +2,7 @@
 const WebSocket = require("ws");
 const { PORT, TICK_HZ, FOOD } = require('./game/constants');
 const { makeSnake, updateSnake, checkCollisions, killSnake } = require('./game/snake');
-const { initFood, checkFoodCollisions } = require('./game/food');
+const { initFood, checkFoodCollisions, updateFood } = require('./game/food');
 const { snapshotForClient, broadcast, validateInput } = require('./game/net');
 const { WORLD } = require('./game/constants');
 
@@ -37,6 +37,9 @@ function stepServer() {
   for (const [, sn] of state.snakes) {
     updateSnake(sn, state.food);
   }
+
+  // Update food positions (for explosion food with velocity)
+  updateFood(state.food);
 
   // Check food collisions
   checkFoodCollisions([...state.snakes.values()], state.food);

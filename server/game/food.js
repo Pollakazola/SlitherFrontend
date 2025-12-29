@@ -1,11 +1,10 @@
 ﻿// Food entity and logic
-const { FOOD, WORLD } = require('./constants');
-const { rand, uid, dist2 } = require('./world');
+const { FOOD, WORLD, DT } = require('./constants');
+const { rand, uid, dist2, wrapPos, isInsideBarrier } = require('./world');
 const { SNAKE } = require('./constants');
 
 function makeFood(size = null) {
   // Spawn food within circular barrier
-  const { isInsideBarrier } = require('./world');
   let x, y;
   let attempts = 0;
   do {
@@ -27,7 +26,64 @@ function makeFood(size = null) {
     x,
     y,
     size: size || FOOD.radius, // food size (radius), defaults to base food size
+    vx: 0, // Velocity X (default 0 for static food)
+    vy: 0, // Velocity Y (default 0 for static food)
+    explosionTime: 0, // Time since explosion (0 for non-exploding food)
+    isExploding: false, // Flag to indicate if this is explosion food
   };
+}
+
+function updateFood(foodMap) {
+  // Deceleration factor: food slows down over time
+  const friction = 0.92; // Multiplier per frame (92% of speed remains each frame)
+  const minSpeed = 5; // Minimum speed threshold - stop below this
+  
+  for (const f of foodMap.values()) {
+    // Initialize velocity properties if they don't exist (backward compatibility)
+    if (f.vx === undefined) f.vx = 0;
+    if (f.vy === undefined) f.vy = 0;
+    if (f.explosionTime === undefined) f.explosionTime = 0;
+    if (f.isExploding === undefined) f.isExploding = false;
+    
+    // Only update food with velocity
+    if (f.vx !== 0 || f.vy !== 0 || f.isExploding) {
+      // Update explosion time
+      if (f.isExploding) {
+        f.explosionTime = (f.explosionTime || 0) + DT;
+      }
+      
+      // Apply friction to slow down food
+      const speed = Math.hypot(f.vx, f.vy);
+      if (speed > minSpeed) {
+        f.vx *= friction;
+        f.vy *= friction;
+        
+        // Update position
+        f.x += f.vx * DT;
+        f.y += f.vy * DT;
+        
+        // Keep food within barrier bounds
+        const foodPos = { x: f.x, y: f.y };
+        if (!isInsideBarrier(f.x, f.y)) {
+          wrapPos(foodPos);
+          f.x = foodPos.x;
+          f.y = foodPos.y;
+          // Stop velocity when hitting barrier
+          f.vx = 0;
+          f.vy = 0;
+          f.isExploding = false;
+        }
+      } else {
+        // Stop food below minimum speed threshold
+        f.vx = 0;
+        f.vy = 0;
+        // Keep explosion flag for rendering effects, but mark as settled
+        if ((f.explosionTime || 0) > 0.5) { // After 0.5 seconds, stop explosion effect
+          f.isExploding = false;
+        }
+      }
+    }
+  }
 }
 
 function checkFoodCollisions(snakes, foodMap) {
@@ -72,4 +128,5 @@ module.exports = {
   makeFood,
   checkFoodCollisions,
   initFood,
+  updateFood,
 };

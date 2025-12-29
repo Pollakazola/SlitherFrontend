@@ -23,8 +23,19 @@ function snapshotForClient(snakes, food) {
 
   const foodList = [];
   for (const f of food.values()) {
-    // Include food size in snapshot: [x, y, id, size]
-    foodList.push([f.x, f.y, f.id, f.size || FOOD.radius]);
+    // Include food properties: [x, y, id, size, hue, isExploding, explosionTime]
+    // hue: snake color for explosion food, undefined for normal food
+    // isExploding: boolean flag for explosion effects
+    // explosionTime: time since explosion for effect animation
+    foodList.push([
+      f.x, 
+      f.y, 
+      f.id, 
+      f.size || FOOD.radius,
+      f.hue !== undefined ? f.hue : null,
+      f.isExploding || false,
+      f.explosionTime || 0
+    ]);
   }
 
   return {

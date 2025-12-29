@@ -261,25 +261,48 @@ function checkCollisions(sn, allSnakes, foodMap) {
 function killSnake(sn, foodMap) {
   sn.alive = false;
 
-  // Calculate food size based on snake's width/score (proportional to snake size)
-  // Larger snakes drop larger food
-  const { FOOD } = require('./constants');
-  const baseFoodSize = FOOD.radius;
-  // Scale food size based on snake width (normalized to base width)
-  // Snake width ranges from baseWidth to maxWidth, so scale food proportionally
+  const { FOOD, DT } = require('./constants');
   const { SNAKE } = require('./constants');
-  const widthRatio = Math.max(0, (sn.width - SNAKE.baseWidth) / (SNAKE.maxWidth - SNAKE.baseWidth));
-  const maxFoodSize = baseFoodSize * 2.5; // Max food size is 2.5x base size (15 pixels)
-  const foodSize = baseFoodSize + (widthRatio * (maxFoodSize - baseFoodSize));
-
-  // Drop food along body with proportional sizes
-  for (let i = 5; i < sn.segments.length; i += 3) {
-    const seg = sn.segments[i];
+  const baseFoodSize = FOOD.radius;
+  
+  // Calculate food amount: 1.5x the score
+  const foodAmount = Math.max(1, Math.floor(sn.score * 1.5));
+  
+  // Explosion parameters
+  const explosionSpeed = 800; // Initial speed for food pieces
+  const explosionCenterX = sn.segments[0]?.x || WORLD.centerX;
+  const explosionCenterY = sn.segments[0]?.y || WORLD.centerY;
+  
+  // Create food exploding in all directions
+  for (let i = 0; i < foodAmount; i++) {
+    // Random angle in all directions
+    const angle = rand(0, Math.PI * 2);
+    // Vary distance from center slightly for more spread
+    const offsetDist = rand(0, sn.width * 0.5);
+    
+    const x = explosionCenterX + Math.cos(angle) * offsetDist;
+    const y = explosionCenterY + Math.sin(angle) * offsetDist;
+    
+    // Calculate velocity: fast initially, will slow down over time
+    const speed = explosionSpeed * (0.7 + rand(0, 0.3)); // Vary speed slightly
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed;
+    
+    // Scale food size based on snake width
+    const widthRatio = Math.max(0, (sn.width - SNAKE.baseWidth) / (SNAKE.maxWidth - SNAKE.baseWidth));
+    const maxFoodSize = baseFoodSize * 2.5;
+    const foodSize = baseFoodSize + (widthRatio * (maxFoodSize - baseFoodSize));
+    
     const f = {
       id: uid(),
-      x: seg.x + rand(-8, 8),
-      y: seg.y + rand(-8, 8),
-      size: foodSize, // Proportional to snake size
+      x,
+      y,
+      size: foodSize,
+      vx, // Velocity X
+      vy, // Velocity Y
+      hue: sn.hue, // Match snake's color for effect
+      explosionTime: 0, // Time since explosion (for effects)
+      isExploding: true, // Flag to indicate this is explosion food
     };
     foodMap.set(f.id, f);
   }

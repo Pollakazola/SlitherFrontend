@@ -64,3 +64,4 @@ The `default` skin folder is already created. Place your snake head and body spr
 - All skins are preloaded when the game starts
 - Sprites support color tinting based on the snake's hue (optional)
 
+

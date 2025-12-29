@@ -192,17 +192,95 @@ function drawGrid(cam) {
 
 function drawFood(food, cam) {
   ctx.save();
-  ctx.fillStyle = "rgba(120, 200, 255, 0.9)";
+  
   for (const foodItem of food) {
-    // Food format: [x, y, id, size] or [x, y, id] (legacy)
+    // Food format: [x, y, id, size, hue, isExploding, explosionTime] or [x, y, id, size] (legacy) or [x, y, id] (old legacy)
     const x = foodItem[0];
     const y = foodItem[1];
-    const size = foodItem[3] || 4; // Default to 4 if size not provided (legacy support)
+    const size = foodItem.length > 3 ? (foodItem[3] || 4) : 4; // Default to 4 if size not provided (legacy support)
+    const hue = foodItem.length > 4 && foodItem[4] !== null && foodItem[4] !== undefined ? foodItem[4] : null;
+    const isExploding = foodItem.length > 5 ? (foodItem[5] || false) : false;
+    const explosionTime = foodItem.length > 6 ? (foodItem[6] || 0) : 0;
+    
     const [sx, sy] = worldToScreen(x, y, cam);
-    ctx.beginPath();
-    ctx.arc(sx, sy, size * cam.zoom, 0, Math.PI * 2);
-    ctx.fill();
+    const screenSize = size * cam.zoom;
+    
+    // Special effects for explosion food
+    if (isExploding && explosionTime < 1.0) {
+      // Draw glow effect
+      const glowSize = screenSize * (1.5 + Math.sin(explosionTime * 20) * 0.3);
+      const alpha = (1 - explosionTime) * 0.6; // Fade out over 1 second
+      
+      // Outer glow
+      const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowSize);
+      if (hue !== null) {
+        // Use snake's color for explosion food
+        gradient.addColorStop(0, `hsla(${hue}, 90%, 70%, ${alpha})`);
+        gradient.addColorStop(0.5, `hsla(${hue}, 80%, 60%, ${alpha * 0.5})`);
+        gradient.addColorStop(1, `hsla(${hue}, 70%, 50%, 0)`);
+      } else {
+        gradient.addColorStop(0, `rgba(255, 200, 100, ${alpha})`);
+        gradient.addColorStop(0.5, `rgba(255, 150, 50, ${alpha * 0.5})`);
+        gradient.addColorStop(1, `rgba(255, 100, 0, 0)`);
+      }
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(sx, sy, glowSize, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Inner bright core
+      ctx.fillStyle = hue !== null 
+        ? `hsla(${hue}, 100%, 80%, ${alpha * 0.9})`
+        : `rgba(255, 255, 200, ${alpha * 0.9})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, screenSize * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Main food circle with pulsing effect
+      const pulse = 1 + Math.sin(explosionTime * 15) * 0.15;
+      ctx.fillStyle = hue !== null 
+        ? `hsl(${hue}, 95%, 65%)`
+        : `rgba(120, 200, 255, 0.9)`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, screenSize * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Sparkle effect (small particles around food)
+      if (explosionTime < 0.3) {
+        ctx.strokeStyle = hue !== null 
+          ? `hsla(${hue}, 100%, 90%, ${(0.3 - explosionTime) / 0.3})`
+          : `rgba(255, 255, 255, ${(0.3 - explosionTime) / 0.3})`;
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+          const sparkleAngle = (Math.PI * 2 / 4) * i + explosionTime * 10;
+          const sparkleDist = screenSize * 1.5;
+          const sparkleX = sx + Math.cos(sparkleAngle) * sparkleDist;
+          const sparkleY = sy + Math.sin(sparkleAngle) * sparkleDist;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sparkleX, sparkleY);
+          ctx.stroke();
+          
+          // Sparkle point
+          ctx.fillStyle = hue !== null 
+            ? `hsla(${hue}, 100%, 90%, ${(0.3 - explosionTime) / 0.3})`
+            : `rgba(255, 255, 255, ${(0.3 - explosionTime) / 0.3})`;
+          ctx.beginPath();
+          ctx.arc(sparkleX, sparkleY, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else {
+      // Normal food rendering
+      ctx.fillStyle = hue !== null 
+        ? `hsl(${hue}, 85%, 65%)` // Use snake color if available
+        : "rgba(120, 200, 255, 0.9)"; // Default blue
+      ctx.beginPath();
+      ctx.arc(sx, sy, screenSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
+  
   ctx.restore();
 }
 

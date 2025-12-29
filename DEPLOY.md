@@ -130,3 +130,4 @@ npm run build
 ### Frontend
 - `WS_BACKEND_URL` - WebSocket URL for backend (e.g., `wss://slither-backend.onrender.com`)
 
+
