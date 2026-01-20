@@ -65,3 +65,8 @@ The `default` skin folder is already created. Place your snake head and body spr
 - Sprites support color tinting based on the snake's hue (optional)
 
 
+
+
+
+
+

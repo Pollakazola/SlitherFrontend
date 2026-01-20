@@ -71,3 +71,8 @@ Open your frontend URL (e.g., `https://slither-frontend-xxxx.onrender.com`) and 
 - For production, consider upgrading to a paid plan
 
 
+
+
+
+
+
